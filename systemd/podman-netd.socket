@@ -3,9 +3,9 @@ Description=Podman network helper socket
 
 [Socket]
 ListenStream=/tmp/podman-netd.sock
-SocketMode=0666
-SocketUser=root
-SocketGroup=root
+SocketMode=0660
+SocketUser=podman-netd
+SocketGroup=podman-netd
 
 [Install]
 WantedBy=sockets.target

@@ -51,6 +51,10 @@ podman info --format {{.Plugins.Network}}
 # Create a dedicated network using the plugin
 podman network create --driver host-bridge host-bridge
 
+# Set up socket permissions
+sudo useradd -r podman-netd -d /
+sudo usermod -a myuser -G podman-netd
+
 # Install the privileged daemon
 sudo cp podman-netd /usr/local/libexec/
 sudo cp systemd/podman-netd.service /etc/systemd/system/podman-netd.service
