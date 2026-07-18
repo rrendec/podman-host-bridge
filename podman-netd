@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+
+import array
+import os
+import stat
+import socket
+import struct
+import json
+import subprocess
+
+SOCKET = "/tmp/podman-netd.sock"
+
+def main():
+    try:
+        os.unlink(SOCKET)
+    except FileNotFoundError:
+        pass
+
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    old = os.umask(0o111)
+    try:
+        server.bind(SOCKET)
+    finally:
+        os.umask(old)
+    server.listen(1)
+
+    print("Listening on", SOCKET)
+
+    conn, _ = server.accept()
+
+    #
+    # Obtain peer credentials.
+    #
+    SO_PEERCRED = 17
+
+    creds = conn.getsockopt(
+        socket.SOL_SOCKET,
+        SO_PEERCRED,
+        struct.calcsize("3i"))
+
+    pid, uid, gid = struct.unpack("3i", creds)
+
+    print(f"Peer pid={pid} uid={uid} gid={gid}")
+
+    #
+    # Receive the namespace fd.
+    #
+    fds = array.array("i")
+
+    msg, ancdata, flags, addr = conn.recvmsg(
+        4096,
+        socket.CMSG_LEN(array.array("i", [0]).itemsize)
+    )
+
+    for level, typ, data in ancdata:
+        if level == socket.SOL_SOCKET and typ == socket.SCM_RIGHTS:
+            fds.frombytes(
+                data[:len(data) - (len(data) % fds.itemsize)]
+            )
+
+    if len(fds) != 1:
+        raise RuntimeError("Did not receive fd")
+
+    fd = fds[0]
+
+    print("Received fd =", fd)
+
+    st = os.fstat(fd)
+
+    print("st_dev =", st.st_dev)
+    print("st_ino =", st.st_ino)
+    print("st_mode =", oct(st.st_mode))
+
+    fdpath = f"/proc/self/fd/{fd}"
+    print("readlink:")
+    print(os.readlink(fdpath))
+
+    request = json.loads(msg.decode("utf-8"))
+
+    print("Request:")
+    print(json.dumps(request, indent=4))
+
+    rc = subprocess.run([
+        "ip",
+        "link",
+        "add",
+        "ve" + request["alias"],
+        "type",
+        "veth",
+        "peer",
+        "name",
+        request["ifname"],
+        "netns",
+        fdpath,
+    ], pass_fds=(fd,), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,)
+
+    if rc.returncode != 0:
+        print(f"Error {rc}")
+        print(rc.stdout)
+
+    response = {"status": "ok"}
+    conn.sendmsg([json.dumps(response).encode("utf-8")])
+
+    os.close(fd)
+    conn.close()
+    server.close()
+
+if __name__ == "__main__":
+    main()

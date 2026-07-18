@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+
+import json
+import pathlib
+import sys
+import subprocess
+import os
+import array
+import socket
+import struct
+from datetime import datetime, timezone
+
+LOG = pathlib.Path("/tmp/host-bridge.log")
+
+def log_request(data=None):
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    with LOG.open("a", encoding="utf-8") as f:
+        f.write("\n" + "=" * 80 + "\n")
+        f.write(f"timestamp: {timestamp}\n")
+        f.write(f"argv: {json.dumps(sys.argv)}\n")
+
+        if data is not None:
+            f.write("request:\n")
+            f.write(json.dumps(data, indent=4))
+            f.write("\n")
+
+def run_command(command):
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    result = subprocess.run(
+        command,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    with LOG.open("a", encoding="utf-8") as f:
+        f.write("\n" + "=" * 80 + "\n")
+        f.write(f"timestamp: {timestamp}\n")
+        f.write(f"command: {command!r}\n")
+        f.write(f"returncode: {result.returncode}\n")
+        f.write("output:\n")
+        f.write(result.stdout)
+
+        if not result.stdout.endswith("\n"):
+            f.write("\n")
+
+    return result.returncode
+
+
+def run_nsenter(netns, command):
+    return run_command([
+        "nsenter",
+        f"--net={netns}",
+        *command,
+    ])
+
+def run_helper(netns, request):
+    # Open the namespace file.
+    fd = os.open(netns, os.O_RDONLY)
+
+    # Connect to the daemon.
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.settimeout(5.0) # seconds
+    sock.connect("/tmp/podman-netd.sock")
+
+    # Send one byte plus the file descriptor.
+    fds = array.array("i", [fd])
+
+    sock.sendmsg(
+        [json.dumps(request).encode("utf-8")],
+        [(socket.SOL_SOCKET,
+          socket.SCM_RIGHTS,
+          fds.tobytes())]
+    )
+
+    reply = sock.recv(65536)
+    response = json.loads(reply.decode("utf-8"))
+
+    if response["status"] != "ok":
+        raise RuntimeError(response["message"])
+
+    sock.close()
+    os.close(fd)
+
+
+def read_request():
+    try:
+        return json.load(sys.stdin)
+    except json.JSONDecodeError:
+        return None
+
+
+def cmd_info():
+    json.dump({
+        "version": "0.1",
+        "api_version": "1.0.0",
+    }, sys.stdout)
+
+
+def cmd_create():
+    data = read_request()
+    log_request(data)
+
+    json.dump(data, sys.stdout)
+
+
+def cmd_setup():
+    netns = sys.argv[2] if len(sys.argv) > 2 else None
+    data = read_request()
+    log_request(data)
+
+    #run_command(["id"])
+    #run_command(["ls", "-l", "/etc"])
+    run_helper(netns, {
+        "action": "setup",
+        "ifname": data["network_options"]["interface_name"],
+        "alias": data["network_options"]["aliases"][0],
+        "bridge": "virbr0",
+    })
+
+    json.dump({
+        "dns_search_domains": [],
+        "dns_server_ips": [],
+        "interfaces": {}
+    }, sys.stdout)
+
+
+def cmd_teardown():
+    netns = sys.argv[2] if len(sys.argv) > 2 else None
+    data = read_request()
+    log_request(data)
+
+
+def main():
+    if len(sys.argv) < 2:
+        cmd_info()
+        return
+
+    cmd = sys.argv[1]
+
+    if cmd == "info":
+        cmd_info()
+    elif cmd == "create":
+        cmd_create()
+    elif cmd == "setup":
+        cmd_setup()
+    elif cmd == "teardown":
+        cmd_teardown()
+    else:
+        log_request({
+            "error": f"unknown command {cmd}"
+        })
+        print(json.dumps({
+            "error": f"Unknown command {cmd}"
+        }))
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

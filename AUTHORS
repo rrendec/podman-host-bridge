@@ -1,0 +1,18 @@
+Program: podman-host-bridge
+Homepage: https://github.com/rrendec/podman-host-bridge
+Bug reports: https://github.com/rrendec/podman-host-bridge/issues
+License: MIT
+
+Authors:
+Radu Rendec <radu@rendec.net>
+
+Note:
+Parts of this program were written with the help of AI based tools, such as chat
+bots or local coding assistants, particularly during early prototyping. Where
+significant parts of the code were written by AI based tools, it is explicitly
+indicated in the corresponding Git commit message by a Co-developed-by tag.
+
+AI usage policy:
+The use of AI based tools is accepted, but all submitted code must be *fully
+understood and verified* by the human submitting it. The human submitting the
+code is ultimately responsible for the submission.

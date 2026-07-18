@@ -1,0 +1,4 @@
+# visudo -f /etc/sudoers.d/podman-net-helper
+# add the line below
+
+rrendec ALL=(root) NOPASSWD: /usr/local/libexec/podman-net-helper *
