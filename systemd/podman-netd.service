@@ -1,0 +1,6 @@
+[Unit]
+Description=Podman network helper
+
+[Service]
+ExecStart=/usr/local/libexec/podman-netd
+Environment=PYTHONUNBUFFERED=1

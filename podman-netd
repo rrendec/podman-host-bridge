@@ -8,26 +8,7 @@ import struct
 import json
 import subprocess
 
-SOCKET = "/tmp/podman-netd.sock"
-
-def main():
-    try:
-        os.unlink(SOCKET)
-    except FileNotFoundError:
-        pass
-
-    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    old = os.umask(0o111)
-    try:
-        server.bind(SOCKET)
-    finally:
-        os.umask(old)
-    server.listen(1)
-
-    print("Listening on", SOCKET)
-
-    conn, _ = server.accept()
-
+def handle_connection(conn):
     #
     # Obtain peer credentials.
     #
@@ -103,6 +84,29 @@ def main():
 
     os.close(fd)
     conn.close()
+
+def main():
+    #
+    # Get connection socket from systemd
+    #
+    if int(os.environ.get("LISTEN_PID", "0")) != os.getpid():
+        raise RuntimeError("not socket activated")
+
+    n = int(os.environ.get("LISTEN_FDS", "0"))
+
+    if n != 1:
+        raise RuntimeError("expected one socket")
+
+    server = socket.fromfd(
+        3,
+        socket.AF_UNIX,
+        socket.SOCK_STREAM,
+    )
+
+    while True:
+        conn, addr = server.accept()
+        handle_connection(conn)
+
     server.close()
 
 if __name__ == "__main__":

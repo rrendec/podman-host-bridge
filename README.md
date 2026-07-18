@@ -53,13 +53,16 @@ podman network create --driver host-bridge host-bridge
 
 # Install the privileged daemon
 sudo cp podman-netd /usr/local/libexec/
+sudo cp systemd/podman-netd.service /etc/systemd/system/podman-netd.service
+sudo cp systemd/podman-netd.socket /etc/systemd/system/podman-netd.socket
+sudo systemctl daemon-reload
 ```
 
 ## Testing
 
 ```
 # Start the privileged daemon
-sudo /usr/local/libexec/podman-netd
+sudo systemctl start podman-netd.socket
 
 # Run a simple test container
 podman run --rm --network=host-bridge -it alpine
