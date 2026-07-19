@@ -8,6 +8,8 @@ import os
 import array
 import socket
 import struct
+import ipaddress
+
 from datetime import datetime, timezone
 
 LOG = pathlib.Path("/tmp/host-bridge.log")
@@ -85,6 +87,16 @@ def run_helper(netns, request):
     os.close(fd)
 
 
+def find_subnet(subnets, ip):
+    ip = ipaddress.ip_address(ip)
+    for subnet in subnets:
+        net = ipaddress.ip_network(subnet["subnet"], strict=False)
+        if ip in net:
+            return ("/" + str(net.prefixlen), subnet["gateway"])
+
+    return (None, None)
+
+
 def read_request():
     try:
         return json.load(sys.stdin)
@@ -134,6 +146,20 @@ def cmd_setup():
         "ip", "link", "set",
         data["network_options"]["interface_name"], "up"
     ])
+
+    for ip in data["network_options"]["static_ips"]:
+        mask, gw = find_subnet(data["network"]["subnets"], ip)
+        if mask:
+            run_nsenter(netns, [
+                "ip", "addr", "add", ip + mask,
+                "dev", data["network_options"]["interface_name"]
+            ])
+        if gw:
+            run_nsenter(netns, [
+                "ip", "route", "add", "default",
+                "via", gw,
+                "dev", data["network_options"]["interface_name"]
+            ])
 
     json.dump({
         "dns_search_domains": [],

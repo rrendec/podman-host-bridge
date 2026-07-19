@@ -41,7 +41,7 @@ connects the other end to the configured bridge.
 The Netavark plugin has `CAP_NET_ADMIN` in the container's namespaces, where the
 unprivileged user is mapped as root. Therefore, it has full control over the
 container end of the veth pair, and the rest of the configuration (such as
-setting the interface up) is done by the plugin.
+setting the interface up and configuring mac/ip addresses) is done by the plugin.
 
 ## Installing
 
@@ -58,7 +58,7 @@ cp host-bridge ~/.local/share/containers/netavark
 podman info --format {{.Plugins.Network}}
 
 # Create a dedicated network using the plugin
-podman network create --driver host-bridge host-bridge
+podman network create --driver host-bridge --subnet 192.168.1.0/24 --gateway 192.168.1.1 host-virbr0
 
 # Set up socket permissions
 sudo useradd -r podman-netd -d /
@@ -79,5 +79,5 @@ sudo systemctl daemon-reload
 sudo systemctl start podman-netd.socket
 
 # Run a simple test container
-podman run --rm --network=host-bridge:mac=02:00:12:34:56:78,bridge=virbr0 -it alpine
+podman run --rm --network=host-virbr0:mac=02:00:12:34:56:78,ip=192.168.1.2,bridge=virbr0 --dns 192.168.1.1 --no-hosts -it alpine
 ```
