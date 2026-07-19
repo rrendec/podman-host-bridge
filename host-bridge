@@ -111,14 +111,22 @@ def cmd_setup():
     data = read_request()
     log_request(data)
 
-    #run_command(["id"])
-    #run_command(["ls", "-l", "/etc"])
+    # TODO data["network_options"]["options"] exists only if extra options are
+    # passed directly to netavark. See the `man podman-run` documentation for
+    # the --network parameter.
+    # Validate that data["network_options"]["options"]["bridge"] exists and
+    # fail with a meaningful error if it doesn't.
     run_helper(netns, {
         "action": "setup",
         "ifname": data["network_options"]["interface_name"],
         "alias": data["network_options"]["aliases"][0],
-        "bridge": "virbr0",
+        "bridge": data["network_options"]["options"]["bridge"]
     })
+
+    run_nsenter(netns, [
+        "ip", "link", "set",
+        data["network_options"]["interface_name"], "up"
+    ])
 
     json.dump({
         "dns_search_domains": [],

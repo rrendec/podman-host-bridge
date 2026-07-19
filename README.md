@@ -34,6 +34,15 @@ container's user, network and mount namespaces. As a result:
   mount namespace.
 - Passing an open namespace file descriptor avoids both problems.
 
+The privileged daemon receives the namespace file descriptor, creates the
+required `veth` pair, moves one end into the target network namespace, and
+connects the other end to the configured bridge.
+
+The Netavark plugin has `CAP_NET_ADMIN` in the container's namespaces, where the
+unprivileged user is mapped as root. Therefore, it has full control over the
+container end of the veth pair, and the rest of the configuration (such as
+setting the interface up) is done by the plugin.
+
 ## Installing
 
 ```
@@ -59,6 +68,7 @@ sudo usermod -a myuser -G podman-netd
 sudo cp podman-netd /usr/local/libexec/
 sudo cp systemd/podman-netd.service /etc/systemd/system/podman-netd.service
 sudo cp systemd/podman-netd.socket /etc/systemd/system/podman-netd.socket
+sudo cp podman-netd.conf /etc/
 sudo systemctl daemon-reload
 ```
 
@@ -69,5 +79,5 @@ sudo systemctl daemon-reload
 sudo systemctl start podman-netd.socket
 
 # Run a simple test container
-podman run --rm --network=host-bridge -it alpine
+podman run --rm --network=host-bridge:bridge=virbr0 -it alpine
 ```

@@ -1,5 +1,3 @@
-- server: config file: list of allowed bridge names
-- server: validate and use bridge name passed by the client
 - server: catch errors and report to the client
 - client: catch errors and report to netavark
 - move the plugin log from `/tmp` to a proper location

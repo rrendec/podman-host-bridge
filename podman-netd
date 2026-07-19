@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import configparser
 import array
 import os
 import stat
@@ -8,7 +9,39 @@ import struct
 import json
 import subprocess
 
-def handle_connection(conn):
+def fdpath(fd):
+    return f"/proc/self/fd/{fd}"
+
+def handle_request(cfg, request, fd):
+    if request["bridge"] not in cfg["allowed-bridge"]:
+        return (f"bridge {request["bridge"]} not allowed", None)
+
+    rc = subprocess.run([
+        "ip", "link", "add",
+        "ve" + request["alias"],
+        "type", "veth",
+        "peer", request["ifname"],
+        "netns", fdpath(fd),
+    ], pass_fds=(fd,), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if rc.returncode != 0:
+        return (f"veth error {rc.returncode}", rc.stdout)
+
+    rc = subprocess.run([
+        "ip", "link", "set",
+        "ve" + request["alias"], "up",
+    ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if rc.returncode != 0:
+        return (f"set link up error {rc.returncode}", rc.stdout)
+
+    rc = subprocess.run([
+        "ip", "link", "set",
+        "ve" + request["alias"],
+        "master", request["bridge"],
+    ], text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if rc.returncode != 0:
+        return (f"set master error {rc.returncode}", rc.stdout)
+
+def handle_connection(cfg, conn):
     #
     # Obtain peer credentials.
     #
@@ -52,34 +85,22 @@ def handle_connection(conn):
     print("st_ino =", st.st_ino)
     print("st_mode =", oct(st.st_mode))
 
-    fdpath = f"/proc/self/fd/{fd}"
-    print("readlink:")
-    print(os.readlink(fdpath))
+    print("readlink: " + os.readlink(fdpath(fd)))
 
     request = json.loads(msg.decode("utf-8"))
 
     print("Request:")
     print(json.dumps(request, indent=4))
 
-    rc = subprocess.run([
-        "ip",
-        "link",
-        "add",
-        "ve" + request["alias"],
-        "type",
-        "veth",
-        "peer",
-        "name",
-        request["ifname"],
-        "netns",
-        fdpath,
-    ], pass_fds=(fd,), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,)
-
-    if rc.returncode != 0:
-        print(f"Error {rc}")
-        print(rc.stdout)
-
     response = {"status": "ok"}
+    errval = handle_request(cfg, request, fd)
+    if errval:
+        response = {
+            "status": "error",
+            "message": errval[0],
+        }
+        if errval[1]:
+            print(errval[1])
     conn.sendmsg([json.dumps(response).encode("utf-8")])
 
     os.close(fd)
@@ -87,8 +108,19 @@ def handle_connection(conn):
 
 def main():
     #
+    # Read configuration
+    #
+    cfg = configparser.ConfigParser()
+    cfg.read("/etc/podman-netd.conf")
+    cfg = {
+        "allowed-bridge": [x.strip() for x in cfg['DEFAULT']['allowed-bridge'].split(',')],
+    }
+
+    #
     # Get connection socket from systemd
     #
+    print(os.environ.get("LISTEN_PID", "0"))
+    print(os.getpid())
     if int(os.environ.get("LISTEN_PID", "0")) != os.getpid():
         raise RuntimeError("not socket activated")
 
@@ -105,7 +137,7 @@ def main():
 
     while True:
         conn, addr = server.accept()
-        handle_connection(conn)
+        handle_connection(cfg, conn)
 
     server.close()
 
