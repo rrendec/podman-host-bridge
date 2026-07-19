@@ -79,5 +79,5 @@ sudo systemctl daemon-reload
 sudo systemctl start podman-netd.socket
 
 # Run a simple test container
-podman run --rm --network=host-bridge:bridge=virbr0 -it alpine
+podman run --rm --network=host-bridge:mac=02:00:12:34:56:78,bridge=virbr0 -it alpine
 ```

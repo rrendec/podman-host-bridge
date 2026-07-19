@@ -123,6 +123,13 @@ def cmd_setup():
         "bridge": data["network_options"]["options"]["bridge"]
     })
 
+    if data["network_options"]["static_mac"]:
+        run_nsenter(netns, [
+            "ip", "link", "set",
+            data["network_options"]["interface_name"],
+            "addr", data["network_options"]["static_mac"]
+        ])
+
     run_nsenter(netns, [
         "ip", "link", "set",
         data["network_options"]["interface_name"], "up"
