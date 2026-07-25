@@ -43,6 +43,47 @@ unprivileged user is mapped as root. Therefore, it has full control over the
 container end of the veth pair, and the rest of the configuration (such as
 setting the interface up and configuring mac/ip addresses) is done by the plugin.
 
+## Status
+
+This project is currently a **proof of concept**.
+
+It is implemented in Python and invokes `iproute2` commands (`ip link`,
+`ip addr`, `ip route`, etc.) to manipulate networking.
+
+A production-quality implementation would likely:
+
+- be written in a compiled language (C or Rust),
+- communicate directly with the kernel using Netlink,
+- avoid spawning external commands.
+
+However, for the intended use case (starting a handful of containers
+occasionally), the current implementation is more than enough.
+
+## Security
+
+The helper daemon communicates over a Unix domain socket.
+
+At the moment the socket is created under `/tmp` because it is visible both to
+the plugin and to the host. The socket has a dedicated `podman-netd` user and
+group, and has mode 0660.
+- Only members of the `podman-netd` group can open the socket for connecting.
+  This prevents random users in the system from creating veth pairs.
+- Even though the socket resides in `/tmp`, it cannot be hijacked because
+  typically `/tmp` has the sticky bit set.
+
+The privileged daemon uses a small configuration file, and the accepted bridge
+interfaces are explicitly listed there. That means even users who are allowed to
+connect to the socket cannot add veth pairs to just any bridge interface in the
+system.
+
+## Limitations
+
+- Prototype-quality implementation.
+- Linux only.
+- Requires a privileged helper daemon running on the host.
+- Assumes networking is managed externally (Linux bridges, routing, firewall rules, `dnsmasq`, etc.).
+- No IP address management beyond what Podman/Netavark already provides.
+
 ## Installing
 
 ```
