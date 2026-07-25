@@ -87,12 +87,13 @@ def run_helper(netns, request):
     os.close(fd)
 
 
-def find_subnet(subnets, ip):
+def find_subnet(subnets, ip, no_default_route=False):
     ip = ipaddress.ip_address(ip)
     for subnet in subnets:
         net = ipaddress.ip_network(subnet["subnet"], strict=False)
         if ip in net:
-            return ("/" + str(net.prefixlen), subnet["gateway"])
+            gw = None if no_default_route else subnet["gateway"]
+            return ("/" + str(net.prefixlen), gw)
 
     return (None, None)
 
@@ -147,8 +148,15 @@ def cmd_setup():
         data["network_options"]["interface_name"], "up"
     ])
 
+    # If the network is created with "--opt=no_default_route",
+    # ["subnets"][0]["gateway"] is not passed in the create request
+    # to the plugin, but for subsequent containers using that network,
+    # ["network"]["subnets"][0]["gateway"] is still passed. However,
+    # ["network"]["options"]["no_default_route"] is passed too, so
+    # clear the gw explicitly in that case.
+    nodr = "no_default_route" in data["network"].get("options", {})
     for ip in data["network_options"]["static_ips"]:
-        mask, gw = find_subnet(data["network"]["subnets"], ip)
+        mask, gw = find_subnet(data["network"]["subnets"], ip, nodr)
         if mask:
             run_nsenter(netns, [
                 "ip", "addr", "add", ip + mask,

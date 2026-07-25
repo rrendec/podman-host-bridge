@@ -59,6 +59,8 @@ podman info --format {{.Plugins.Network}}
 
 # Create a dedicated network using the plugin
 podman network create --driver host-bridge --subnet 192.168.1.0/24 --gateway 192.168.1.1 host-virbr0
+# Or a host-only variant with no gateway
+podman network create --driver host-bridge --subnet 192.168.1.0/24 --opt=no_default_route host-virbr0
 
 # Set up socket permissions
 sudo useradd -r podman-netd -d /
