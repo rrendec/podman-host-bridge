@@ -9,6 +9,7 @@ import array
 import socket
 import struct
 import ipaddress
+import random
 
 from datetime import datetime, timezone
 
@@ -98,6 +99,10 @@ def find_subnet(subnets, ip, no_default_route=False):
     return (None, None)
 
 
+def rand_alias():
+    return "".join(random.choices("0123456789abcdef", k=12))
+
+
 def read_request():
     try:
         return json.load(sys.stdin)
@@ -132,7 +137,7 @@ def cmd_setup():
     run_helper(netns, {
         "action": "setup",
         "ifname": data["network_options"]["interface_name"],
-        "alias": data["network_options"]["aliases"][0],
+        "alias": (data["network_options"]["aliases"] or [rand_alias()])[0],
         "bridge": data["network"]["options"]["bridge"]
     })
 

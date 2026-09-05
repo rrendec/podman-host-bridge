@@ -130,3 +130,10 @@ sudo systemctl start podman-netd.socket
 # Run a simple test container
 podman run --rm --network=host-virbr0:mac=02:00:12:34:56:78,ip=192.168.1.2 --dns 192.168.1.1 --no-hosts -it alpine
 ```
+
+## Other use cases and examples
+
+```
+# Build a container image
+podman build -f path/to/Containerfile -t some-name --network=host-virbr0 --dns=192.168.1.1 --no-hosts --squash --isolation=oci
+```
