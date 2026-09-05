@@ -133,7 +133,7 @@ def cmd_setup():
         "action": "setup",
         "ifname": data["network_options"]["interface_name"],
         "alias": data["network_options"]["aliases"][0],
-        "bridge": data["network_options"]["options"]["bridge"]
+        "bridge": data["network"]["options"]["bridge"]
     })
 
     if data["network_options"]["static_mac"]:
@@ -154,7 +154,7 @@ def cmd_setup():
     # ["network"]["subnets"][0]["gateway"] is still passed. However,
     # ["network"]["options"]["no_default_route"] is passed too, so
     # clear the gw explicitly in that case.
-    nodr = "no_default_route" in data["network"].get("options", {})
+    nodr = "no_default_route" in data["network"]["options"]
     for ip in data["network_options"]["static_ips"]:
         mask, gw = find_subnet(data["network"]["subnets"], ip, nodr)
         if mask:
