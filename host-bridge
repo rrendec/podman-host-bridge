@@ -176,7 +176,7 @@ def cmd_setup():
 
     json.dump({
         "dns_search_domains": [],
-        "dns_server_ips": [],
+        "dns_server_ips": data["network"]["network_dns_servers"] if data["network"]["dns_enabled"] else None,
         "interfaces": {}
     }, sys.stdout)
 
